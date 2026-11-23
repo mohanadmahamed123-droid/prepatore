@@ -1,0 +1,674 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monster Survival</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: #080d17;
+    color: white;
+    font-family: Tahoma, sans-serif;
+    text-align: center;
+    overflow: hidden;
+    user-select: none;
+}
+
+header {
+    padding: 12px;
+    background: #111b2b;
+    border-bottom: 2px solid #263c55;
+}
+
+h1 {
+    color: #5ee7ff;
+    font-size: 25px;
+}
+
+.stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 12px;
+    font-size: 15px;
+}
+
+.stat {
+    color: #70eaff;
+}
+
+#healthBar {
+    width: 150px;
+    height: 12px;
+    background: #333;
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 5px auto;
+}
+
+#healthFill {
+    width: 100%;
+    height: 100%;
+    background: #35e879;
+    transition: width .2s;
+}
+
+.gameArea {
+    position: relative;
+    width: min(95vw, 800px);
+    margin: 0 auto;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: min(58vh, 520px);
+    background: #101a27;
+    border: 2px solid #334a63;
+    border-radius: 12px;
+    touch-action: none;
+}
+
+.overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    background: #050914eF;
+    border-radius: 12px;
+    padding: 15px;
+}
+
+.overlay h2 {
+    color: #63e8ff;
+    font-size: 32px;
+}
+
+.overlay p {
+    line-height: 2;
+    color: #d5e5f5;
+}
+
+button {
+    border: none;
+    border-radius: 12px;
+    padding: 12px 24px;
+    background: #12bde0;
+    color: #07121c;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+button:active {
+    transform: scale(.94);
+}
+
+#controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: min(95vw, 800px);
+    margin: 15px auto;
+    direction: ltr;
+}
+
+.pad {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 48px);
+    gap: 4px;
+}
+
+.pad button {
+    padding: 0;
+    font-size: 22px;
+    background: #233b55;
+    color: white;
+    touch-action: none;
+}
+
+.up { grid-column: 2; grid-row: 1; }
+.left { grid-column: 1; grid-row: 2; }
+.down { grid-column: 2; grid-row: 2; }
+.right { grid-column: 3; grid-row: 2; }
+
+.fire {
+    width: 90px;
+    height: 75px;
+    border-radius: 50%;
+    background: #f04d55;
+    color: white;
+    font-size: 16px;
+    touch-action: none;
+}
+
+.hint {
+    color: #91a8bb;
+    font-size: 12px;
+    padding: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>🧟 MONSTER SURVIVAL</h1>
+    <p>قاتل الوحوش وابقَ على قيد الحياة!</p>
+</header>
+
+<div class="stats">
+    <div>⭐ النقاط: <span id="score" class="stat">0</span></div>
+    <div>❤️ الصحة</div>
+    <div>🏆 المستوى: <span id="level" class="stat">1</span></div>
+    <div>👾 الوحوش: <span id="kills" class="stat">0</span></div>
+</div>
+
+<div id="healthBar">
+    <div id="healthFill"></div>
+</div>
+
+<div class="gameArea">
+
+    <canvas id="game"></canvas>
+
+    <div class="overlay" id="startScreen">
+        <h2>🧟 عالم الوحوش</h2>
+        <p>
+            استعد لمواجهة الوحوش!<br>
+            تحرك وابتعد عنها واجمع النقاط.<br>
+            سلاحك يطلق تلقائياً نحو أقرب وحش.
+        </p>
+        <button onclick="startGame()">ابدأ اللعبة 🚀</button>
+    </div>
+
+    <div class="overlay" id="endScreen" style="display:none">
+        <h2>انتهت اللعبة!</h2>
+        <p>نتيجتك: <span id="finalScore">0</span></p>
+        <button onclick="startGame()">العب مرة أخرى 🔄</button>
+    </div>
+
+</div>
+
+<div id="controls">
+
+    <div class="pad">
+        <button class="up" data-key="ArrowUp">▲</button>
+        <button class="left" data-key="ArrowLeft">◀</button>
+        <button class="down" data-key="ArrowDown">▼</button>
+        <button class="right" data-key="ArrowRight">▶</button>
+    </div>
+
+    <button class="fire" id="fireBtn">🔥<br>إطلاق</button>
+
+</div>
+
+<p class="hint">
+    الكمبيوتر: WASD أو الأسهم للحركة و Space للإطلاق
+    <br>
+    الموبايل: استخدم أزرار الحركة والإطلاق
+</p>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const scoreText = document.getElementById("score");
+const levelText = document.getElementById("level");
+const killsText = document.getElementById("kills");
+const healthFill = document.getElementById("healthFill");
+
+let W, H;
+
+function resize() {
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width;
+    H = rect.height;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+resize();
+window.addEventListener("resize", resize);
+
+let player;
+let monsters = [];
+let bullets = [];
+let particles = [];
+
+let score = 0;
+let kills = 0;
+let level = 1;
+let health = 100;
+
+let running = false;
+let lastTime = 0;
+let spawnTimer = 0;
+let shootTimer = 0;
+let invincible = 0;
+
+const keys = {};
+
+const stars = Array.from({length: 65}, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    size: Math.random() * 2
+}));
+
+function startGame() {
+
+    score = 0;
+    kills = 0;
+    level = 1;
+    health = 100;
+
+    monsters = [];
+    bullets = [];
+    particles = [];
+
+    player = {
+        x: W / 2,
+        y: H / 2,
+        size: 15,
+        speed: 230
+    };
+
+    spawnTimer = 0;
+    shootTimer = 0;
+    invincible = 0;
+
+    updateUI();
+
+    document.getElementById("startScreen").style.display = "none";
+    document.getElementById("endScreen").style.display = "none";
+
+    running = true;
+    lastTime = performance.now();
+
+    requestAnimationFrame(loop);
+}
+
+function updateUI() {
+    scoreText.textContent = score;
+    killsText.textContent = kills;
+    levelText.textContent = level;
+    healthFill.style.width = health + "%";
+
+    healthFill.style.background =
+        health > 50 ? "#35e879" :
+        health > 25 ? "#ffbd38" : "#ff4545";
+}
+
+function spawnMonster() {
+
+    let side = Math.floor(Math.random() * 4);
+    let x, y;
+
+    if (side === 0) {
+        x = Math.random() * W;
+        y = -20;
+    } else if (side === 1) {
+        x = W + 20;
+        y = Math.random() * H;
+    } else if (side === 2) {
+        x = Math.random() * W;
+        y = H + 20;
+    } else {
+        x = -20;
+        y = Math.random() * H;
+    }
+
+    monsters.push({
+        x, y,
+        size: 13 + Math.random() * 5,
+        speed: 45 + level * 9 + Math.random() * 20,
+        hp: 1,
+        color: ["#62db8b", "#a88cff", "#ff8c65"][
+            Math.floor(Math.random() * 3)
+        ]
+    });
+}
+
+function nearestMonster() {
+
+    let nearest = null;
+    let minDistance = Infinity;
+
+    for (let m of monsters) {
+        let d = Math.hypot(m.x - player.x, m.y - player.y);
+
+        if (d < minDistance) {
+            minDistance = d;
+            nearest = m;
+        }
+    }
+
+    return nearest;
+}
+
+function shoot() {
+
+    const target = nearestMonster();
+
+    if (!target) return;
+
+    let dx = target.x - player.x;
+    let dy = target.y - player.y;
+    let distance = Math.hypot(dx, dy) || 1;
+
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        vx: dx / distance * 430,
+        vy: dy / distance * 430,
+        life: 1.5
+    });
+}
+
+function update(dt) {
+
+    let dx = 0;
+    let dy = 0;
+
+    if (keys["ArrowLeft"] || keys["a"]) dx--;
+    if (keys["ArrowRight"] || keys["d"]) dx++;
+    if (keys["ArrowUp"] || keys["w"]) dy--;
+    if (keys["ArrowDown"] || keys["s"]) dy++;
+
+    const len = Math.hypot(dx, dy);
+
+    if (len > 0) {
+        dx /= len;
+        dy /= len;
+    }
+
+    player.x += dx * player.speed * dt;
+    player.y += dy * player.speed * dt;
+
+    player.x = Math.max(player.size, Math.min(W-player.size, player.x));
+    player.y = Math.max(player.size, Math.min(H-player.size, player.y));
+
+    spawnTimer += dt;
+
+    const spawnRate = Math.max(.35, 1.4 - level * .09);
+
+    if (spawnTimer >= spawnRate && monsters.length < 45) {
+        spawnMonster();
+        spawnTimer = 0;
+    }
+
+    shootTimer -= dt;
+
+    if ((keys[" "] || keys["fire"]) && shootTimer <= 0) {
+        shoot();
+        shootTimer = .24;
+    }
+
+    invincible = Math.max(0, invincible - dt);
+
+    for (let m of monsters) {
+
+        let x = player.x - m.x;
+        let y = player.y - m.y;
+        let d = Math.hypot(x, y) || 1;
+
+        m.x += x / d * m.speed * dt;
+        m.y += y / d * m.speed * dt;
+
+        if (d < player.size + m.size && invincible <= 0) {
+            health -= 12;
+            invincible = .65;
+
+            updateUI();
+
+            if (health <= 0) {
+                gameOver();
+                return;
+            }
+        }
+    }
+
+    for (let b of bullets) {
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+    }
+
+    for (let b of bullets) {
+        for (let m of monsters) {
+
+            if (m.hp <= 0) continue;
+
+            let d = Math.hypot(b.x - m.x, b.y - m.y);
+
+            if (d < m.size + 5 && b.life > 0) {
+
+                m.hp = 0;
+                b.life = 0;
+
+                score += 10;
+                kills++;
+
+                particles.push({
+                    x: m.x,
+                    y: m.y,
+                    life: .4
+                });
+
+                if (kills % 10 === 0) {
+                    level++;
+                }
+
+                updateUI();
+            }
+        }
+    }
+
+    monsters = monsters.filter(m => m.hp > 0);
+
+    bullets = bullets.filter(b =>
+        b.life > 0 &&
+        b.x > -20 && b.x < W+20 &&
+        b.y > -20 && b.y < H+20
+    );
+
+    particles.forEach(p => p.life -= dt);
+    particles = particles.filter(p => p.life > 0);
+}
+
+function draw() {
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = "#101a27";
+    ctx.fillRect(0, 0, W, H);
+
+    // Stars
+    for (let s of stars) {
+        ctx.fillStyle = "#ffffff55";
+        ctx.beginPath();
+        ctx.arc(s.x * W, s.y * H, s.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Grid
+    ctx.strokeStyle = "#ffffff09";
+    ctx.lineWidth = 1;
+
+    for (let x = 0; x < W; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+    }
+
+    for (let y = 0; y < H; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+    }
+
+    // Bullets
+    bullets.forEach(b => {
+        ctx.fillStyle = "#ffe66b";
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#ffe66b";
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+
+    // Monsters
+    monsters.forEach(m => {
+
+        ctx.fillStyle = m.color;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = m.color;
+
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        // Eyes
+        ctx.fillStyle = "#111";
+        ctx.beginPath();
+        ctx.arc(m.x - 5, m.y - 3, 3, 0, Math.PI * 2);
+        ctx.arc(m.x + 5, m.y - 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(m.x - 3, m.y + 5, 6, 2);
+    });
+
+    // Player
+    if (player) {
+
+        ctx.save();
+
+        if (invincible > 0 && Math.floor(invincible * 15) % 2 === 0) {
+            ctx.globalAlpha = .35;
+        }
+
+        ctx.fillStyle = "#42d9ff";
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = "#42d9ff";
+
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#092333";
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = "#ffd166";
+        ctx.globalAlpha = p.life * 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    });
+}
+
+function loop(time) {
+
+    if (!running) return;
+
+    let dt = Math.min((time - lastTime) / 1000, .04);
+    lastTime = time;
+
+    update(dt);
+    draw();
+
+    if (running) {
+        requestAnimationFrame(loop);
+    }
+}
+
+function gameOver() {
+
+    running = false;
+
+    document.getElementById("finalScore").textContent = score;
+    document.getElementById("endScreen").style.display = "flex";
+}
+
+// Keyboard controls
+window.addEventListener("keydown", e => {
+
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(k)) {
+        e.preventDefault();
+    }
+
+    keys[k] = true;
+});
+
+window.addEventListener("keyup", e => {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    keys[k] = false;
+});
+
+// Mobile buttons
+document.querySelectorAll("[data-key]").forEach(btn => {
+
+    const key = btn.dataset.key;
+
+    btn.addEventListener("pointerdown", e => {
+        e.preventDefault();
+        keys[key] = true;
+    });
+
+    ["pointerup", "pointercancel", "pointerleave"].forEach(event => {
+        btn.addEventListener(event, () => keys[key] = false);
+    });
+});
+
+const fireBtn = document.getElementById("fireBtn");
+
+fireBtn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    keys["fire"] = true;
+});
+
+["pointerup", "pointercancel", "pointerleave"].forEach(event => {
+    fireBtn.addEventListener(event, () => keys["fire"] = false);
+});
+
+draw();
+
+</script>
+
+</body>
+</html>
